@@ -489,7 +489,7 @@ def main(out, paper, catalog):
              "states, with three further checks, on distress, on the coding of drug deaths and on the years since arrival (A8), and for the triplicate comparison (A9), and four further tests: within states across counties (A10), "
              "negative-control outcomes (A11), the population at risk (A12) and Canada's provinces (A13). A14 "
              "is the STROBE checklist, and A15 lists the sources cited here. The code "
-             "that produces every table is public [repository link].", ""]
+             "that produces every table is public at https://github.com/jfrancisohalloran/prescribing-fentanyl-mortality.", ""]
 
     c = pd.read_csv(catalog)
     c = c[c.dataset.isin(DATASETS)].set_index("dataset").reindex(DATASETS)
