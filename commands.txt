@@ -1,0 +1,32 @@
+python3 code/01_pull_public.py
+python3 code/02_who_drug_deaths.py $R/who_mortality_db/<date> out/who_drug_deaths_country_year.csv $R/worldbank_population/<date>
+python3 code/03_first_look.py $R/incb_narcotic_drugs/<date> out/who_drug_deaths_country_year.csv out/first_look_countries.csv
+python3 code/04_incb_xiv.py $R/incb_narcotic_drugs/<date> out/incb_sddd_2000_2014.csv
+python3 code/05_synthetic_arrival.py out/incb_sddd_2000_2014.csv $R/health_canada_das/<date> out/synthetic_arrival.csv
+python3 code/06_tests.py out/incb_sddd_2000_2014.csv out/who_drug_deaths_country_year.csv out/synthetic_arrival.csv $R/worldbank_gdp_per_capita/<date> out
+python3 code/08_arcos_retail.py $R/dea_arcos_retail/<date> out/arcos_retail_state_year_drug.csv
+python3 code/07_us_states.py inputs/1a_out <arcos county file> $R/wonder_pooled/<date> out out/arcos_retail_state_year_drug.csv
+python3 code/09_alpert_rerun.py inputs/1a_out <arcos county file> $R/wonder_pooled/<date> out
+python3 code/10_euda_drd_check.py $R/euda_drd/<date> out/who_drug_deaths_country_year.csv out/euda_drd_check.csv
+python3 code/11_unodc_fentanyl.py $R/unodc_wdr_seizures/<date> $R/worldbank_population/<date> out/synthetic_arrival.csv out/unodc_fentanyl_seizures.csv
+python3 code/15_gbd_check.py $R/ihme_gbd/<date> out/incb_sddd_2000_2014.csv out/synthetic_arrival.csv $R/worldbank_gdp_per_capita/<date> out
+python3 code/19_hardship_2010_check.py inputs/1a_out $R/wonder_pooled/<date> inputs/index_2010.csv out
+python3 code/20_cardiac_coding_check.py $R/wonder_cvd_drug/<date> $R/wonder_pooled/<date> out
+python3 code/21_europe_after_2019.py $R/unodc_wdr_seizures/<date> out
+python3 code/23_audit_checks.py out
+python3 code/24_fixed_span.py $R/wonder_state_year_t404/<date> $R/wonder_state_month/<date> out inputs/1a_out/halfyear/arrival_dates_uncertainty.csv
+python3 code/25_outcome_window.py out out/gbd_check_countries.csv
+python3 code/26_fixed_span_scaled.py $R/wonder_state_year_t404/<date> $R/wonder_state_month/<date> out
+python3 code/27_triplicate_trend.py inputs/1a_out <arcos county file> $R/wonder_pooled/<date> out
+python3 code/28_norway_national.py $R/euda_drd/<date> $R/worldbank_population/<date> out $R/who_mortality_db/<date>
+python3 code/29_who_fcodes.py $R/who_mortality_db/<date> $R/worldbank_population/<date> out/incb_sddd_2000_2014.csv out/synthetic_arrival.csv $R/worldbank_gdp_per_capita/<date> out
+python3 code/30_negative_controls.py $R/who_mortality_db/<date> $R/worldbank_population/<date> out/incb_sddd_2000_2014.csv out/synthetic_arrival.csv $R/worldbank_gdp_per_capita/<date> $R/wonder_pooled/<date> out
+python3 code/31_population_at_risk.py $R/teds_a/<date>/TEDS-A-2006_2023-DS0001-bndl-data-csv_v1.zip inputs/1a_out <arcos county file> $R/wonder_pooled/<date> $R/wonder_state_year_t404/<date> $R/wonder_state_month/<date> $R/euda_statsbulletin_2023/<date> out/incb_sddd_2000_2014.csv out/who_drug_deaths_country_year.csv out/synthetic_arrival.csv $R/worldbank_gdp_per_capita/<date> $R/worldbank_population/<date> out
+python3 code/32_canada_provinces.py $R/statcan_deaths_cause/<date> $R/statcan_population/<date> $R/health_canada_das/<date> <PHAC harms csv> $R/canada_province_prescribing/<date> out
+python3 code/33_county_arrival.py inputs/1a_out <arcos county file> $R/wonder_pooled/<date> $R/wonder_county_year/<date> $R/nchs_county_model/<date> out
+python3 code/34_external_by_intent.py $R/who_mortality_db/<date> out
+python3 code/35_state_leave_one_out.py $R/wonder_state_year_t404/<date> $R/wonder_state_month/<date> out
+python3 code/12_figures.py out figures
+python3 code/13_numbers.py out paper
+python3 code/14_tables.py out paper
+python3 code/16_appendix.py out paper inputs/sources.csv

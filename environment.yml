@@ -1,0 +1,15 @@
+# The software the paper's results were produced and rerun with. `conda env create -p <folder> -f environment.yml` builds it.
+# Poppler supplies pdftotext, which code/04 and code/08 call to read the tables in INCB's and DEA's PDF reports.
+# Its releases 25.10.0, on macOS, and 25.12.0, on Linux, gave identical extractions.
+name: paper8
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13.9
+  - pandas=3.0.1
+  - numpy=2.3.4
+  - scipy=1.17.1
+  - statsmodels=0.14.6
+  - matplotlib-base=3.10.8
+  - openpyxl=3.1.5
+  - poppler=25.*
