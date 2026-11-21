@@ -26,6 +26,7 @@ python3 code/32_canada_provinces.py $R/statcan_deaths_cause/<date> $R/statcan_po
 python3 code/33_county_arrival.py inputs/1a_out <arcos county file> $R/wonder_pooled/<date> $R/wonder_county_year/<date> $R/nchs_county_model/<date> out
 python3 code/34_external_by_intent.py $R/who_mortality_db/<date> out
 python3 code/35_state_leave_one_out.py $R/wonder_state_year_t404/<date> $R/wonder_state_month/<date> out
+python3 code/38_indiana_lab.py $R/indiana_isp_lab_submissions/<date>/drug_submissions_to_indiana_state_police_laboratories.csv inputs/1a_out/county_base.csv <arcos county file> out
 python3 code/12_figures.py out figures
 python3 code/13_numbers.py out paper
 python3 code/14_tables.py out paper

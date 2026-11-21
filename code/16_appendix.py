@@ -17,7 +17,7 @@ import pandas as pd
 DATASETS = ["incb_narcotic_drugs", "who_mortality_db", "worldbank_population", "worldbank_gdp_per_capita", "euda_drd", "unodc_wdr_seizures",
             "euda_edr_pages", "reitox_national_reports", "ihme_gbd", "health_canada_das", "wonder_pooled", "wonder_cvd_drug", "wonder_state_year_t404", "wonder_state_month", "dea_arcos_retail", "acs_county_2012", "other_settings",
             "eu_network_sources", "arcos_county", "wonder_county_year", "teds_a", "euda_statsbulletin_2023", "statcan_deaths_cause",
-            "statcan_population", "canada_province_prescribing"]
+            "statcan_population", "canada_province_prescribing", "indiana_isp_lab_submissions"]
 SHORT = {"United States of America": "USA", "United Kingdom": "UK", "China, Hong Kong SAR": "Hong Kong", "Netherlands (Kingdom of the)": "Netherlands"}
 
 
@@ -69,6 +69,8 @@ PLAIN_SOURCES = {  # A1: what each dataset is, in plain words; the retrieval dat
                                 "European Union Drugs Agency"),
     "statcan_deaths_cause": ("Vital statistics: deaths by selected grouped causes and province, table 13-10-0932-01", "Statistics Canada"),
     "statcan_population": ("Population estimates on 1 July by province, table 17-10-0005-01", "Statistics Canada"),
+    "indiana_isp_lab_submissions": ("Drug submissions to Indiana State Police laboratories, 2007 to March 2021",
+                                    "Indiana State Police, on the Indiana Data Hub"),
     "canada_province_prescribing": ("Strong-opioid dispensing by province, fiscal 2007–08 to 2016–17, table 1 of Jones, Kurdyak and Fischer 2020",
                                     "BMC Health Services Research"),
 }
@@ -808,6 +810,16 @@ def main(out, paper, catalog):
               "the reference, and the Wald test asks whether the windows before arrival are jointly zero. The synthetic-opioid models use "
               "the county-year file for 2018–25, whose deaths are both drug poisoning and T40.4, and the pooled 2014–20 file, within states. "
               "The national gradients by window are in the code archive.", "", md(ct), ""]
+    il = pd.read_csv(out / "indiana_lab_results.csv").query("sample == 'all' and exposure == 'E1'").set_index("outcome")
+    ir = lambda k: f"{il.loc[k, 'ratio']:.2f} ({il.loc[k, 'ratio_lo']:.2f} to {il.loc[k, 'ratio_hi']:.2f})"
+    parts += ["A check from the supply side uses Indiana, whose state police laboratories publish every drug identified by county: "
+              f"among its {int(il.loc['O2 timing', 'n'])} counties outside Marion County with a dispensing rate, a standard deviation "
+              "more log dispensing in 2009–11 changed the odds that a heroin or fentanyl case of 2017–20 held fentanyl by a ratio of "
+              f"{ir('O1 share')} and the yearly chance of a county's first fentanyl cases by {ir('O2 timing')}, with the county's "
+              "cases per resident in 2007–11 and its population held. "
+              f"It went with {ir('O4 fentanyl 2017-20')} times the fentanyl cases per resident and {ir('other: methamphetamine 2017-20')} "
+              "times the methamphetamine cases, so in these seizures dispensing marked a larger later drug market and did not mark "
+              "fentanyl's share of it.", ""]
 
     nc = pd.read_csv(out / "negative_controls_results.csv")
     nc = nc[(nc["sample"] == "main 60") & (nc.variant == "code/02's missing years")]
