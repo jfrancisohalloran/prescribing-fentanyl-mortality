@@ -23,7 +23,7 @@ python3 code/29_who_fcodes.py $R/who_mortality_db/<date> $R/worldbank_population
 python3 code/30_negative_controls.py $R/who_mortality_db/<date> $R/worldbank_population/<date> out/incb_sddd_2000_2014.csv out/synthetic_arrival.csv $R/worldbank_gdp_per_capita/<date> $R/wonder_pooled/<date> out
 python3 code/31_population_at_risk.py $R/teds_a/<date>/TEDS-A-2006_2023-DS0001-bndl-data-csv_v1.zip inputs/1a_out <arcos county file> $R/wonder_pooled/<date> $R/wonder_state_year_t404/<date> $R/wonder_state_month/<date> $R/euda_statsbulletin_2023/<date> out/incb_sddd_2000_2014.csv out/who_drug_deaths_country_year.csv out/synthetic_arrival.csv $R/worldbank_gdp_per_capita/<date> $R/worldbank_population/<date> out
 python3 code/32_canada_provinces.py $R/statcan_deaths_cause/<date> $R/statcan_population/<date> $R/health_canada_das/<date> <PHAC harms csv> $R/canada_province_prescribing/<date> out
-python3 code/33_county_arrival.py inputs/1a_out <arcos county file> $R/wonder_pooled/<date> $R/wonder_county_year/<date> $R/nchs_county_model/<date> out
+python3 code/33_county_arrival.py inputs/1a_out <arcos county file> $R/wonder_pooled/<date> $R/wonder_county_year/<date> $R/nchs_county_model/<date> out $R/wonder_county_year/<date of the all-drug-poisoning pull>
 python3 code/34_external_by_intent.py $R/who_mortality_db/<date> out
 python3 code/35_state_leave_one_out.py $R/wonder_state_year_t404/<date> $R/wonder_state_month/<date> out
 python3 code/38_indiana_lab.py $R/indiana_isp_lab_submissions/<date>/drug_submissions_to_indiana_state_police_laboratories.csv inputs/1a_out/county_base.csv <arcos county file> out

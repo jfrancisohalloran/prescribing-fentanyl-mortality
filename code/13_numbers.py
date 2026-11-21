@@ -310,6 +310,11 @@ def main(out, paper):
     x = lo1[(lo1.bound == 5) & (lo1.left_out == "DC")].iloc[0]
     add("DC: dispensing per 100, 2009-11", f"{x.dispensing:.1f}", "state_leave_one_out.csv", "code/35")
 
+    k = ca[ca.model.str.startswith("5c") & ca.model.str.endswith("censored Poisson") & ca.term.str.startswith("lrx_x_since")]
+    add("County all drug poisoning 2018-25, censored: ratios by years since arrival, without and with dispensing x year", "; ".join(
+        f"{'trend' if 'dispensing x year' in x.model else 'bins'} {x.term[12:]}: {x.ratio:.2f} ({x.ratio_lo:.2f} to {x.ratio_hi:.2f})" for x in k.itertuples()),
+        "county_arrival_results.csv", "code/33; appendix A10")
+    add("County all drug poisoning 2018-25: counties", f"{int(k.counties.iloc[0])}", "county_arrival_results.csv", "code/33; appendix A10")
     il = pd.read_csv(out / "indiana_lab_results.csv").query("sample == 'all' and exposure == 'E1'").set_index("outcome")
     add("Indiana laboratory cases, per SD of log dispensing: fentanyl's share, first-year hazard, fentanyl cases, methamphetamine cases",
         "; ".join(f"{il.loc[k, 'ratio']:.2f} ({il.loc[k, 'ratio_lo']:.2f} to {il.loc[k, 'ratio_hi']:.2f})" for k in

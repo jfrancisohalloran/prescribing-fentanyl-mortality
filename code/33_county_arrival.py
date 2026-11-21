@@ -36,7 +36,8 @@ Writes, all estimates or counts of counties, never a death count:
   out/county_arrival_checks.csv    dispensing percentiles, the NCHS level check, and a check of the fitting code against statsmodels
 
   /opt/homebrew/bin/python3.13 -I code/33_county_arrival.py <inputs/1a_out folder> <arcos_county_year.csv> <wonder_pooled date folder>
-      <wonder_county_year date folder> <nchs_county_model date folder> <out folder>
+      <wonder_county_year date folder> <nchs_county_model date folder> <out folder> [<wonder_county_year date folder holding
+      wonder_county_year_od.tsv, all drug poisoning 2018-25, for model 5c>]
 """
 import pathlib
 import sys
@@ -332,7 +333,7 @@ def wald(b, V, names, which):
 
 # ---------------------------------------------------------------- the analyses
 
-def main(onea, arcos, wonder, wcy, nchs, outdir):
+def main(onea, arcos, wonder, wcy, nchs, outdir, wcy_od=None):
     wonder, wcy, nchs, outdir = pathlib.Path(wonder), pathlib.Path(wcy), pathlib.Path(nchs), pathlib.Path(outdir)
     cb0 = counties(onea, arcos)
     sample, res, checks = [], [], []
@@ -420,6 +421,22 @@ def main(onea, arcos, wonder, wcy, nchs, outdir):
             for lab, lo, hi in [("before arrival", -99, -1)] + YEAR_BINS:
                 k = cy[cy.since.between(lo, hi)]
                 checks.append(dict(check=f"5a: states with county-years {lab}; their arrival years", value=f"{k.state.nunique()} states; {sorted(k.A.unique())}"))
+        # 5c. the same county-year model for all drug poisoning, 2018-2025, when that file is given
+        if wcy_od:
+            co = read_county_year(pathlib.Path(wcy_od) / "wonder_county_year_od.tsv", bound).merge(cb[["fips", "st", "state", "lrx", "A"]], on="fips")
+            co["since"] = co.year - co.A
+            co = co.rename(columns={"year": "yr"})
+            g = co.groupby("fips")
+            co = co[(g.deaths.transform("sum") > 0) & (g.yr.transform("size") > 1)].copy()
+            obins = [(f"lrx_x_since_{lab}", co.lrx * co.since.between(lo, hi)) for lab, lo, hi in YEAR_BINS]
+            for lab, with_trend in (("5c all drug poisoning county-year: bins of years since arrival", False),
+                                    ("5c all drug poisoning county-year: bins, plus dispensing x year", True)):
+                run_years(co, sorted(co.yr.unique()), obins, lab, bound, res, with_trend, iqr_rx)
+            if bound == 5:
+                sample.append(dict(step="5c county-year panel 2018-2025, all drug poisoning", bound=bound, counties=co.fips.nunique(), county_windows=len(co),
+                                   states=co.st.nunique()))
+                checks.append(dict(check="5c: share of county-years hidden by WONDER (1-9 deaths)", value=co.hidden.mean()))
+                co5 = co
         # 5b. T40.4 pooled 2014-20, cross-section within states
         t = read_wonder(wonder / "mcd_t404_2014_2020_county.tsv", bound).merge(cb[["fips", "st", "lrx", "nhw_n"]], on="fips")
         pos = t[t.deaths > 0].assign(lrate=lambda k: np.log(k.deaths / k.population))
@@ -447,6 +464,11 @@ def main(onea, arcos, wonder, wcy, nchs, outdir):
     run_years(cy5, yrs, bins, "5a T40.4 county-year: bins of years since arrival, censored Poisson", cl, res, False, iqr_rx, censored=True)
     run_years(cy5, yrs, bins, "5a T40.4 county-year: bins, plus dispensing x year, censored Poisson", cl, res, True, iqr_rx, censored=True)
     cross_section(t5, "5b T40.4 2014-20 cross-section: censored Poisson, state effects, all counties", cl, res, iqr_rx, censored=True)
+    if wcy_od:
+        obins = [(f"lrx_x_since_{lab}", co5.lrx * co5.since.between(lo, hi)) for lab, lo, hi in YEAR_BINS]
+        for lab, with_trend in (("5c all drug poisoning county-year: bins of years since arrival, censored Poisson", False),
+                                ("5c all drug poisoning county-year: bins, plus dispensing x year, censored Poisson", True)):
+            run_years(co5, sorted(co5.yr.unique()), obins, lab, cl, res, with_trend, iqr_rx, censored=True)
     for w in ("2008-10", "2017-19"):
         cross_section(p5[p5.window == w], f"5b context: all drug poisoning {w} cross-section, censored Poisson, state effects", cl, res, iqr_rx, censored=True)
     r = pd.DataFrame(res)
@@ -534,6 +556,6 @@ def self_check(p, checks):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 7:
+    if len(sys.argv) not in (7, 8):
         sys.exit(__doc__)
-    main(*sys.argv[1:7])
+    main(*sys.argv[1:])

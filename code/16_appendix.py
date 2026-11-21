@@ -491,7 +491,7 @@ def main(out, paper, catalog):
              "states, with three further checks, on distress, on the coding of drug deaths and on the years since arrival (A8), and for the triplicate comparison (A9), and four further tests: within states across counties (A10), "
              "negative-control outcomes (A11), the population at risk (A12) and Canada's provinces (A13). A14 "
              "is the STROBE checklist, and A15 lists the sources cited here. The code "
-             "that produces every table is public at https://github.com/jfrancisohalloran/prescribing-fentanyl-mortality.", ""]
+             "that produces every table is public at https://github.com/jfrancisohalloran/prescribing-fentanyl-mortality and archived at https://doi.org/10.5281/zenodo.24409907.", ""]
 
     c = pd.read_csv(catalog)
     c = c[c.dataset.isin(DATASETS)].set_index("dataset").reindex(DATASETS)
@@ -810,6 +810,14 @@ def main(out, paper, catalog):
               "the reference, and the Wald test asks whether the windows before arrival are jointly zero. The synthetic-opioid models use "
               "the county-year file for 2018–25, whose deaths are both drug poisoning and T40.4, and the pooled 2014–20 file, within states. "
               "The national gradients by window are in the code archive.", "", md(ct), ""]
+    c5 = pd.read_csv(out / "county_arrival_results.csv")
+    c5 = c5[c5.model.str.startswith("5c") & c5.model.str.endswith("censored Poisson") & c5.term.str.startswith("lrx_x_since")]
+    k5 = c5[c5.term.isin(["lrx_x_since_3-4", "lrx_x_since_5-6", "lrx_x_since_7+"])]
+    plain, trend = k5[~k5.model.str.contains("dispensing x year")], k5[k5.model.str.contains("dispensing x year")]
+    parts += ["The same county-year model fitted to all drug poisoning in 2018–25, from a second CDC WONDER file, carries the test through "
+              f"2025 in {int(c5.counties.iloc[0]):,} counties. In the censored model, the ratios three or more years after arrival were "
+              f"{plain.ratio.min():.2f} to {plain.ratio.max():.2f}, and {trend.ratio.min():.2f} to {trend.ratio.max():.2f} with log "
+              "dispensing by year, and every interval included one.", ""]
     il = pd.read_csv(out / "indiana_lab_results.csv").query("sample == 'all' and exposure == 'E1'").set_index("outcome")
     ir = lambda k: f"{il.loc[k, 'ratio']:.2f} ({il.loc[k, 'ratio_lo']:.2f} to {il.loc[k, 'ratio_hi']:.2f})"
     parts += ["A check from the supply side uses Indiana, whose state police laboratories publish every drug identified by county: "
