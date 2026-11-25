@@ -5,16 +5,16 @@ hold on pooled rates is mostly years of exposure. Here each state's synthetic-op
 after its arrival year, and over years two to four, and the models of code/07 and code/09 are fitted again beside the pooled rate.
 
 Deaths with a drug-poisoning underlying cause and T40.4 among the multiple causes, by state of residence and year: 1999-2020 from CDC
-WONDER's Multiple Cause of Death file (folder `wonder_state_year_t404`), and 2021-2024 summed from the state-by-month pull of the
-provisional file, final through 2024 (folder `wonder_state_month`), as the companion state study's code/54 reads them. Counts of 1 to 9 that WONDER hides
-enter at 1 and at 9. Rates for 2021-2024 use the 2020 population. States, prescribing, arrival, distress, market type and triplicate
+WONDER's Multiple Cause of Death file, and 2021-2024 from WONDER's counts by state and year in the provisional file, final through
+2024, both among the downloaded sources folder `wonder_state_year_t404`. Counts of 1 to 9 that WONDER hides enter at 1 and at 9; none falls in
+2021-2024 for these states. Each year's rate uses that year's population. States, prescribing, arrival, distress, market type and triplicate
 status are those of code/09's frame. OLS with HC3 errors. Writes out/fixed_span.csv: estimates only, no counts.
 
 With a fourth argument, the file of arrival dates with the standard deviation of each date under resampling of the state's
 laboratory reports (columns state, arr_p1_persist_sd), the arrival and dispensing models are fitted again without the states whose
 standard deviation exceeds a year, and out/fixed_span_certain.csv is written.
 
-  python3 code/24_fixed_span.py <wonder_state_year_t404 date folder> <wonder_state_month date folder> <out folder> [arrival_dates_uncertainty.csv]
+  python3 code/24_fixed_span.py <wonder_state_year_t404 date folder> <out folder> [arrival_dates_uncertainty.csv]
 """
 import pathlib
 import sys
@@ -28,18 +28,18 @@ MODELS = [("arrival date", "ly ~ za", "za"), ("market type", "ly ~ white", "whit
           ("triplicate", "ly ~ triplicate", "triplicate"), ("triplicate, arrival date", "ly ~ triplicate + za", "triplicate")]
 
 
-def main(d77, d176, out, uncertainty=None):
-    d77, d176, out = pathlib.Path(d77), pathlib.Path(d176), pathlib.Path(out)
+def main(d77, out, uncertainty=None):
+    d77, out = pathlib.Path(d77), pathlib.Path(out)
     a = pd.read_csv(d77 / "wonder_t404_state_year_1999_2020.tsv", sep="\t", dtype=str)
     a["st"] = a.state.str.extract(r"\((\d\d)\)")[0].astype(int)
     a["year"] = a.year.str[:4].astype(int)
     a["pop"] = a.population.str.replace(",", "").astype(float)
     a["hidden"] = a.deaths.eq("Suppressed")
     a["d"] = pd.to_numeric(a.deaths.str.replace(",", ""), errors="coerce")
-    m = pd.read_csv(d176 / "wonder_stage1_opioid.tsv", sep="\t", dtype=str)
-    m = m[m["Month Code"].notna() & m["Residence State (without Puerto Rico) Code"].notna()]
-    m = pd.DataFrame(dict(st=m["Residence State (without Puerto Rico) Code"].astype(int), year=m["Month Code"].str[:4].astype(int),
-                          hidden=m.Deaths.eq("Suppressed"), d=pd.to_numeric(m.Deaths, errors="coerce")))
+    m = pd.read_csv(d77 / "wonder_t404_state_year_2018_2024.tsv", sep="\t", dtype=str)
+    m = pd.DataFrame(dict(st=m.state.str.extract(r"\((\d\d)\)")[0].astype(int), year=m.year.str[:4].astype(int),
+                          pop=m.population.str.replace(",", "").astype(float), hidden=m.deaths.eq("Suppressed"),
+                          d=pd.to_numeric(m.deaths.str.replace(",", ""), errors="coerce")))
     s = pd.read_csv(out / "alpert_rerun_frame.csv").set_index("st")
     s["Y"] = np.floor(s.arrival).astype(int)
     rows, certain = [], []
@@ -49,9 +49,8 @@ def main(d77, d176, out, uncertainty=None):
         assert s.date_sd.notna().all(), "a state has no standard deviation for its date"
     for bound in (1, 9):
         ya = a.assign(y=a.d.fillna(bound).where(~a.hidden, bound))[["st", "year", "y", "pop"]]
-        ym = m.assign(y=m.d.where(~m.hidden, bound)).groupby(["st", "year"], as_index=False).y.sum()
-        pop20 = ya[ya.year == 2020].set_index("st")["pop"]
-        p = pd.concat([ya, ym[ym.year.between(2021, 2024)].assign(pop=lambda t: t.st.map(pop20))]).set_index(["st", "year"]).sort_index()
+        ym = m.assign(y=m.d.where(~m.hidden, bound))[["st", "year", "y", "pop"]]
+        p = pd.concat([ya, ym[ym.year.between(2021, 2024)]]).set_index(["st", "year"]).sort_index()
 
         def rate(st, y0, y1):
             k = p.loc[(st, slice(y0, y1)), :]
@@ -81,4 +80,4 @@ def main(d77, d176, out, uncertainty=None):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:5])
+    main(*sys.argv[1:4])

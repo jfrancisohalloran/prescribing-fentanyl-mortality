@@ -15,7 +15,7 @@ import sys
 import pandas as pd
 
 DATASETS = ["incb_narcotic_drugs", "who_mortality_db", "worldbank_population", "worldbank_gdp_per_capita", "euda_drd", "unodc_wdr_seizures",
-            "euda_edr_pages", "reitox_national_reports", "ihme_gbd", "health_canada_das", "wonder_pooled", "wonder_cvd_drug", "wonder_state_year_t404", "wonder_state_month", "dea_arcos_retail", "acs_county_2012", "other_settings",
+            "euda_edr_pages", "reitox_national_reports", "ihme_gbd", "health_canada_das", "wonder_pooled", "wonder_cvd_drug", "wonder_state_year_t404", "wonder_state_year_t404_2018_2024", "dea_arcos_retail", "acs_county_2012", "other_settings",
             "eu_network_sources", "arcos_county", "wonder_county_year", "teds_a", "euda_statsbulletin_2023", "statcan_deaths_cause",
             "statcan_population", "canada_province_prescribing", "indiana_isp_lab_submissions"]
 SHORT = {"United States of America": "USA", "United Kingdom": "UK", "China, Hong Kong SAR": "Hong Kong", "Netherlands (Kingdom of the)": "Netherlands"}
@@ -54,7 +54,7 @@ PLAIN_SOURCES = {  # A1: what each dataset is, in plain words; the retrieval dat
     "wonder_cvd_drug": ("CDC WONDER: deaths by state with a cardiovascular underlying cause and a drug poisoning contributing, with "
                         "drug-poisoning deaths, 1999–2020", "Centers for Disease Control and Prevention"),
     "wonder_state_year_t404": ("CDC WONDER: synthetic-opioid overdose deaths by state and year, 1999–2020", "Centers for Disease Control and Prevention"),
-    "wonder_state_month": ("CDC WONDER: synthetic-opioid overdose deaths by state and month, 2019–24", "Centers for Disease Control and Prevention"),
+    "wonder_state_year_t404_2018_2024": ("CDC WONDER: synthetic-opioid overdose deaths by state and year, 2018–24", "Centers for Disease Control and Prevention"),
     "dea_arcos_retail": ("ARCOS Retail Drug Summary, report 4: distribution by state in grams per 100 000 population", "Drug Enforcement Administration"),
     "acs_county_2012": ("American Community Survey 2008–2012 five-year summary file, county tables, with the Small Area Income and Poverty "
                         "Estimates for 2010", "US Census Bureau"),
@@ -87,6 +87,13 @@ def pages(a, b):
     while k < len(a) - 2 and len(a) == len(b) and a[k] == b[k]:
         k += 1
     return f"{a}–{b[k:]}"
+
+
+def merge_bounds(t, col="Hidden counts entered at"):
+    """Rows that differ only in the bound become one row, its bound cell listing the bounds."""
+    rest = [c for c in t.columns if c != col]
+    g = t.astype({col: str}).groupby(rest, sort=False, dropna=False)[col].agg(lambda v: " or ".join(dict.fromkeys(v))).reset_index()
+    return g[list(t.columns)]
 
 
 def est(b, se):
@@ -663,15 +670,17 @@ def main(out, paper, catalog):
                        "Hidden counts entered at": fx.hidden, "Term": fx.model.map(lambda v: what[v][1]),
                        "Adjusted for": fx.model.map(lambda v: what[v][0]), "Estimate (95% CI)": [est(b, se) for b, se in zip(fx.b, fx.se)],
                        "p": fx.p.map(pval), "R²": fx.r2.map(lambda v: f"{v:.2f}")})
+    ft = merge_bounds(ft)
     pooled = pd.read_csv(out / "fixed_span.csv").query("span == '2014-20 pooled' and model == 'arrival date'").r2
     k13 = fx[(fx.span == "years 1-3 after the arrival year") & (fx.model == "arrival date")].r2
     parts += ["The third check concerns the years since arrival. A rate pooled over 2014–20 gives a state reached in 2019 two years with "
               "fentanyl and a state reached in 2014 seven, so the arrival date's hold on pooled rates is mostly years of exposure: it "
-              f"explains {100 * pooled.min():.0f}% of the variation between states in the pooled rate and {100 * k13.min():.0f}% to "
-              f"{100 * k13.max():.0f}% of the rate over the three calendar years after each state's own arrival year. We therefore fitted "
+              f"explains {100 * pooled.min():.0f}% of the variation between states in the pooled rate and {100 * k13.max():.0f}% "
+              "of the rate over the three calendar years after each state's own arrival year. We therefore fitted "
               "the models of dispensing, of triplicate status and of market type on that rate, and on the rate over years two to four. "
-              "Deaths by state and year are from CDC WONDER, to 2020 from the final file and for 2021–24 from monthly counts, both listed "
-              "in A1, with the counts of one to nine that WONDER hides entered at one and at nine. In all 49 states, dispensing and "
+              "Deaths by state and year are from CDC WONDER, to 2020 from the final file and for 2021–24 from the provisional file, both "
+              "listed in A1, with the counts of one to nine that WONDER hides entered at one and at nine. None is hidden in any state's "
+              "years after arrival, so those rows are the same at either bound and are shown once. In all 49 states, dispensing and "
               "triplicate status are not clearly associated with mortality at the same years after arrival, though without the District of "
               "Columbia the dispensing estimate is larger, as the end of this section shows; states in the white-powder heroin markets "
               f"east of the Mississippi have higher rates. The table gives each estimate, {len(ft)} rows in all.", "", md(ft), ""]
@@ -683,6 +692,7 @@ def main(out, paper, catalog):
                        "Hidden counts entered at": fc.hidden, "Term": fc.model.map(lambda v: what[v][1]),
                        "Adjusted for": fc.model.map(lambda v: what[v][0]), "Estimate (95% CI)": [est(b, se) for b, se in zip(fc.b, fc.se)],
                        "p": fc.p.map(pval), "R²": fc.r2.map(lambda v: f"{v:.2f}"), "States": fc.n})
+    ct = merge_bounds(ct)
     parts += ["The arrival dates carry error. Resampling each state's laboratory reports gives every date a standard deviation: across "
               f"the 49 states its median is {fc.median_sd.iloc[0]:.1f} years, and it exceeds a year in four, "
               f"{', '.join(left[:-1])} and {left[-1]}, all states with late dates and few reports. The table repeats the arrival and "
@@ -696,6 +706,7 @@ def main(out, paper, catalog):
                        "Adjusted for": sc.model.map(lambda v: what[v][0]), "Estimate (95% CI)": [eci(b, lo, hi) for b, lo, hi in zip(sc.b, sc.lo, sc.hi)],
                        "Ratio, 75th to 25th percentile of dispensing (95% CI)": [
                            "" if pd.isna(w) else f"{w:.2f} ({a:.2f} to {z:.2f})" for w, a, z in zip(sc.wave_ratio, sc.wave_ratio_lo, sc.wave_ratio_hi)]})
+    st = merge_bounds(st)
     rng = sc[(sc.term == "lrx") & sc.scaled_by_national_rate]
     parts += ["A state reached in 2014 has its window in 2015–17 and one reached in 2020 in 2021–23, when national synthetic-opioid "
               "mortality was several times higher. Holding the arrival date absorbs a linear calendar trend but not the curve of the "
@@ -717,8 +728,8 @@ def main(out, paper, catalog):
     parts += ["The main state model, log dispensing adjusted for arrival over the three years after the arrival year, was refitted "
               "without each state in turn. The District of Columbia, a single city with the lowest dispensing of the 49, "
               f"{dcx.dispensing:.1f} per 100, and high mortality after arrival, weighs far more than any state, and without it the estimate "
-              "is larger at every bound. The county test of A10 asks the sharper question, the rise within each state, where DC adds "
-              "nothing.", "", md(pd.DataFrame(rows)), ""]
+              "is larger. The county test of A10 asks the sharper question, the rise within each state, where DC adds "
+              "nothing.", "", md(merge_bounds(pd.DataFrame(rows))), ""]
 
     tr = pd.read_csv(out / "alpert_rerun_results.csv")
     ttabs = triplicate_tables(tr)
@@ -874,6 +885,7 @@ def main(out, paper, catalog):
                        "Hidden counts at": pr.bound.map(lambda v: "" if pd.isna(v) else str(int(v))), "Model": pr.formula, "Number": pr.n,
                        "Term": pr.term.map(tlab), "Estimate (95% CI)": [f"{b:.2f}" if pd.isna(lo) else eci(b, lo, hi) for b, lo, hi in zip(pr.b, pr.lo, pr.hi)],
                        "p": pr.p.map(pval)})
+    pt = merge_bounds(pt, "Hidden counts at")
     pm = pd.read_csv(out / "population_at_risk_market_countries.csv")
     pmt = pd.DataFrame({"Measure": pm.measure.map(lambda v: v[0].upper() + v[1:]), "Country": pm.country.map(lambda n: SHORT.get(n, n)), "Market": pm.status,
                         "Value": pm.value.map(lambda v: "" if pd.isna(v) else f"{v:.2f}"), "Year": pm.year.map(lambda v: "" if pd.isna(v) else str(int(v))),

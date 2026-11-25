@@ -80,8 +80,8 @@ def main(out, paper):
     x = g(us, "P2 + arrival, distress, market | log synthetic-opioid rate 2014-20", "lrx")
     row(f"{x.n} states", SYN, "Log dispensing, 2009–11", "Arrival date, distress, market type", REG, ci(x.b, x.se))
     fx = pd.read_csv(out / "fixed_span.csv"); fx = fx[fx.span == "years 1-3 after the arrival year"]
-    span = lambda mod: "; ".join(ci(k.b, k.se) for k in fx[fx.model == mod].sort_values("hidden").itertuples())
-    SPAN = "Synthetic-opioid mortality, three years after arrival, hidden counts at one; at nine"
+    span = lambda mod: "; ".join(dict.fromkeys(ci(k.b, k.se) for k in fx[fx.model == mod].sort_values("hidden").itertuples()))
+    SPAN = "Synthetic-opioid mortality, three years after arrival"
     row("49 states", SPAN, "Log dispensing, 2009–11", "Arrival date", REG, span("dispensing, arrival date"))
     row("49 states", SPAN, "White-powder heroin market", "None", REG, span("market type"))
     x = g(us, "P2 + arrival | overdose rise 2011-13 to 2017-19", "lrx"); row(f"{x.n} states", OD, "Log dispensing, 2009–11", "Arrival date", REG, ci(x.b, x.se))

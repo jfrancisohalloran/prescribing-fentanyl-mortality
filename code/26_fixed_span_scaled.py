@@ -5,8 +5,8 @@ A state reached in 2014 has its window in 2015-17 and one reached in 2020 in 202
 several times higher. code/24's models that hold the arrival date absorb a linear calendar trend, since the window is the arrival
 year plus one to three, but not the curved national path. Here each state's window rate is divided by the national rate over the
 same three calendar years, the national rate being the deaths of the 49 states summed over their population, and code/24's models
-are fitted again on the log of that ratio. Hidden counts of 1 to 9 enter at 1 and at 9, as in code/24; population for 2021-24 is
-each state's 2020 population, as in code/24, unless the monthly pull carries yearly population.
+are fitted again on the log of that ratio. Hidden counts of 1 to 9 enter at 1 and at 9, as in code/24, and each year's rate uses
+that year's population.
 
 For each estimate of log dispensing it also gives what the interval allows across the middle half of states: the 75th percentile
 of dispensing over the 25th, raised to the estimate and to each end of its interval, the ratio of mortality that a state at the
@@ -14,7 +14,7 @@ of dispensing over the 25th, raised to the estimate and to each end of its inter
 
 Reads the same inputs as code/24; writes out/fixed_span_scaled.csv (estimates only, no counts).
 
-  python3 code/26_fixed_span_scaled.py <wonder_state_year_t404 date folder> <wonder_state_month date folder> <out folder>
+  python3 code/26_fixed_span_scaled.py <wonder_state_year_t404 date folder> <out folder>
   python3 code/26_fixed_span_scaled.py --selftest
 """
 import importlib.util
@@ -32,7 +32,7 @@ spec.loader.exec_module(fs)
 MODELS = fs.MODELS
 
 
-def panel(d77, d176, out, bound):
+def panel(d77, out, bound):
     """Deaths and population by state and year, 1999-2024, exactly as code/24 builds them."""
     a = pd.read_csv(d77 / "wonder_t404_state_year_1999_2020.tsv", sep="\t", dtype=str)
     a["st"] = a.state.str.extract(r"\((\d\d)\)")[0].astype(int)
@@ -40,14 +40,13 @@ def panel(d77, d176, out, bound):
     a["pop"] = a.population.str.replace(",", "").astype(float)
     a["hidden"] = a.deaths.eq("Suppressed")
     a["d"] = pd.to_numeric(a.deaths.str.replace(",", ""), errors="coerce")
-    m = pd.read_csv(d176 / "wonder_stage1_opioid.tsv", sep="\t", dtype=str)
-    m = m[m["Month Code"].notna() & m["Residence State (without Puerto Rico) Code"].notna()]
-    m = pd.DataFrame(dict(st=m["Residence State (without Puerto Rico) Code"].astype(int), year=m["Month Code"].str[:4].astype(int),
-                          hidden=m.Deaths.eq("Suppressed"), d=pd.to_numeric(m.Deaths, errors="coerce")))
+    m = pd.read_csv(d77 / "wonder_t404_state_year_2018_2024.tsv", sep="\t", dtype=str)
+    m = pd.DataFrame(dict(st=m.state.str.extract(r"\((\d\d)\)")[0].astype(int), year=m.year.str[:4].astype(int),
+                          pop=m.population.str.replace(",", "").astype(float), hidden=m.deaths.eq("Suppressed"),
+                          d=pd.to_numeric(m.deaths.str.replace(",", ""), errors="coerce")))
     ya = a.assign(y=a.d.fillna(bound).where(~a.hidden, bound))[["st", "year", "y", "pop"]]
-    ym = m.assign(y=m.d.where(~m.hidden, bound)).groupby(["st", "year"], as_index=False).y.sum()
-    pop20 = ya[ya.year == 2020].set_index("st")["pop"]
-    return pd.concat([ya, ym[ym.year.between(2021, 2024)].assign(pop=lambda t: t.st.map(pop20))])
+    ym = m.assign(y=m.d.where(~m.hidden, bound))[["st", "year", "y", "pop"]]
+    return pd.concat([ya, ym[ym.year.between(2021, 2024)]])
 
 
 def fit(s, p, bound):
@@ -101,7 +100,7 @@ def simulated(seed=8):
     return s.set_index("st"), pd.DataFrame(rows)
 
 
-def main(d77, d176=None, out=None):
+def main(d77, out=None):
     if d77 == "--selftest":
         s, p = simulated()
         r = pd.DataFrame(fit(s, p, 1))
@@ -113,12 +112,12 @@ def main(d77, d176=None, out=None):
         print(r.round(3).to_string())
         print("selftest passed")
         return
-    d77, d176, out = pathlib.Path(d77), pathlib.Path(d176), pathlib.Path(out)
+    d77, out = pathlib.Path(d77), pathlib.Path(out)
     s = pd.read_csv(out / "alpert_rerun_frame.csv").set_index("st")
     s["Y"] = np.floor(s.arrival).astype(int)
     rows = []
     for bound in (1, 9):
-        rows += fit(s, panel(d77, d176, out, bound), bound)
+        rows += fit(s, panel(d77, out, bound), bound)
     r = pd.DataFrame(rows)
     r.to_csv(out / "fixed_span_scaled.csv", index=False)
     with pd.option_context("display.width", 250, "display.max_rows", 200):

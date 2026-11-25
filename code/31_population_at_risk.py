@@ -37,7 +37,7 @@ with the Spearman correlation. C2: the market countries' levels and ranks, as de
 Death counts are never written; only rates of admissions, model estimates and the EUDA measures.
 
   python3 -I code/31_population_at_risk.py <TEDS-A 2006-2023 zip> <inputs/1a_out folder> <arcos_county_year.csv> <wonder_pooled date folder> \
-      <wonder_state_year_t404 date folder> <wonder_state_month date folder> <euda_statsbulletin_2023 date folder> <incb csv> \
+      <wonder_state_year_t404 date folder> <euda_statsbulletin_2023 date folder> <incb csv> \
       <who deaths csv> <arrival csv> <worldbank_gdp_per_capita date folder> <worldbank_population date folder> <out folder>
 
 Writes, in the out folder: population_at_risk_teds_state_year.csv (admission counts by state and year; reused if present, delete it
@@ -142,22 +142,21 @@ def teds_windows(t, pop, states, checks):
 
 
 # ---------------------------------------------------------------- code/24's post-arrival rate, copied
-def post_arrival(d77, d176, s, bound):
-    d77, d176 = pathlib.Path(d77), pathlib.Path(d176)
+def post_arrival(d77, s, bound):
+    d77 = pathlib.Path(d77)
     a = pd.read_csv(d77 / "wonder_t404_state_year_1999_2020.tsv", sep="\t", dtype=str)
     a["st"] = a.state.str.extract(r"\((\d\d)\)")[0].astype(int)
     a["year"] = a.year.str[:4].astype(int)
     a["pop"] = a.population.str.replace(",", "").astype(float)
     a["hidden"] = a.deaths.eq("Suppressed")
     a["d"] = pd.to_numeric(a.deaths.str.replace(",", ""), errors="coerce")
-    m = pd.read_csv(d176 / "wonder_stage1_opioid.tsv", sep="\t", dtype=str)
-    m = m[m["Month Code"].notna() & m["Residence State (without Puerto Rico) Code"].notna()]
-    m = pd.DataFrame(dict(st=m["Residence State (without Puerto Rico) Code"].astype(int), year=m["Month Code"].str[:4].astype(int),
-                          hidden=m.Deaths.eq("Suppressed"), d=pd.to_numeric(m.Deaths, errors="coerce")))
+    m = pd.read_csv(d77 / "wonder_t404_state_year_2018_2024.tsv", sep="\t", dtype=str)
+    m = pd.DataFrame(dict(st=m.state.str.extract(r"\((\d\d)\)")[0].astype(int), year=m.year.str[:4].astype(int),
+                          pop=m.population.str.replace(",", "").astype(float), hidden=m.deaths.eq("Suppressed"),
+                          d=pd.to_numeric(m.deaths.str.replace(",", ""), errors="coerce")))
     ya = a.assign(y=a.d.fillna(bound).where(~a.hidden, bound))[["st", "year", "y", "pop"]]
-    ym = m.assign(y=m.d.where(~m.hidden, bound)).groupby(["st", "year"], as_index=False).y.sum()
-    pop20 = ya[ya.year == 2020].set_index("st")["pop"]
-    p = pd.concat([ya, ym[ym.year.between(2021, 2024)].assign(pop=lambda t: t.st.map(pop20))]).set_index(["st", "year"]).sort_index()
+    ym = m.assign(y=m.d.where(~m.hidden, bound))[["st", "year", "y", "pop"]]
+    p = pd.concat([ya, ym[ym.year.between(2021, 2024)]]).set_index(["st", "year"]).sort_index()
 
     def rate(st, y0, y1):
         k = p.loc[(st, slice(y0, y1)), :]
@@ -190,7 +189,7 @@ def iqr(x):
 
 
 # ---------------------------------------------------------------- US states
-def us_states(teds_zip, onea, arcos, wonder, d77, d176, out, res, checks):
+def us_states(teds_zip, onea, arcos, wonder, d77, out, res, checks):
     t7 = load("t7", "07_us_states.py")
     teds = teds_counts(teds_zip, out)
     pop = state_population(d77)
@@ -258,7 +257,7 @@ def us_states(teds_zip, onea, arcos, wonder, d77, d176, out, res, checks):
     checks.append(dict(check="S2: states in code/24's frame without an admissions rate", value=int(f24.ladm.isna().sum())))
     fs = pd.read_csv(out / "fixed_span.csv")
     for bound in (1, 9):
-        rates = post_arrival(d77, d176, f24, bound)
+        rates = post_arrival(d77, f24, bound)
         for span, y in rates.items():
             d = f24.assign(ly=np.log(y.astype(float)))
             main = span.startswith("years 1-3")
@@ -439,11 +438,11 @@ def countries(euda, incb, who, arrival, gdp, wbpop, out, res, checks):
 
 
 # ---------------------------------------------------------------- main
-def main(teds_zip, onea, arcos, wonder, d77, d176, euda, incb, who, arrival, gdp, wbpop, out):
+def main(teds_zip, onea, arcos, wonder, d77, euda, incb, who, arrival, gdp, wbpop, out):
     out = pathlib.Path(out)
     warnings.filterwarnings("ignore", category=UserWarning)
     res, checks = [], []
-    s, iq = us_states(teds_zip, onea, arcos, wonder, d77, d176, out, res, checks)
+    s, iq = us_states(teds_zip, onea, arcos, wonder, d77, out, res, checks)
     wide, mk, iq_c = countries(euda, incb, who, arrival, gdp, wbpop, out, res, checks)
     r = pd.DataFrame(res)
     r["model"] = r.model.fillna("")
@@ -465,4 +464,4 @@ def main(teds_zip, onea, arcos, wonder, d77, d176, euda, incb, who, arrival, gdp
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:14])
+    main(*sys.argv[1:13])
