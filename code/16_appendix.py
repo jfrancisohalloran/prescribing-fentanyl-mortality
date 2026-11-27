@@ -8,6 +8,7 @@ coding notes are kept in plain sentences here (NOTES); if code/05 changes a note
 
   python3 code/16_appendix.py <out folder> <paper folder> <data_catalog/sources.csv>
 """
+import importlib.util
 import pathlib
 import re
 import sys
@@ -15,7 +16,7 @@ import sys
 import pandas as pd
 
 DATASETS = ["incb_narcotic_drugs", "who_mortality_db", "worldbank_population", "worldbank_gdp_per_capita", "euda_drd", "unodc_wdr_seizures",
-            "euda_edr_pages", "reitox_national_reports", "ihme_gbd", "health_canada_das", "wonder_pooled", "wonder_cvd_drug", "wonder_state_year_t404", "wonder_state_year_t404_2018_2024", "dea_arcos_retail", "acs_county_2012", "other_settings",
+            "euda_edr_pages", "reitox_national_reports", "ihme_gbd", "health_canada_das", "wonder_pooled", "wonder_cvd_drug", "wonder_state_year_t404", "wonder_state_year_t404_2018_2024", "wonder_state_year_t401_t402", "nflis_dqs_heroin", "dea_arcos_retail", "acs_county_2012", "other_settings",
             "eu_network_sources", "arcos_county", "wonder_county_year", "teds_a", "euda_statsbulletin_2023", "statcan_deaths_cause",
             "statcan_population", "canada_province_prescribing", "indiana_isp_lab_submissions"]
 SHORT = {"United States of America": "USA", "United Kingdom": "UK", "China, Hong Kong SAR": "Hong Kong", "Netherlands (Kingdom of the)": "Netherlands"}
@@ -32,6 +33,11 @@ def md(df):
 def joinx(parts):
     """Terms of an interaction, 'Log prescribing × illicit supply': lower case after the first, as in running text."""
     return " × ".join([parts[0]] + [p[0].lower() + p[1:] if not p[:2].isupper() else p for p in parts[1:]])
+
+
+def andlist(parts):
+    """'a', 'a and b', 'a, b and c'."""
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
 def period(w):
@@ -69,6 +75,10 @@ PLAIN_SOURCES = {  # A1: what each dataset is, in plain words; the retrieval dat
                                 "European Union Drugs Agency"),
     "statcan_deaths_cause": ("Vital statistics: deaths by selected grouped causes and province, table 13-10-0932-01", "Statistics Canada"),
     "statcan_population": ("Population estimates on 1 July by province, table 17-10-0005-01", "Statistics Canada"),
+    "wonder_state_year_t401_t402": ("CDC WONDER: heroin and prescription-opioid overdose deaths by state and year, 1999–2020",
+                                    "Centers for Disease Control and Prevention"),
+    "nflis_dqs_heroin": ("National Forensic Laboratory Information System: heroin reports by state and half-year, 2010–26",
+                         "US Drug Enforcement Administration"),
     "indiana_isp_lab_submissions": ("Drug submissions to Indiana State Police laboratories, 2007 to March 2021",
                                     "Indiana State Police, on the Indiana Data Hub"),
     "canada_province_prescribing": ("Strong-opioid dispensing by province, fiscal 2007–08 to 2016–17, table 1 of Jones, Kurdyak and Fischer 2020",
@@ -78,6 +88,7 @@ PLAIN_SOURCES = {  # A1: what each dataset is, in plain words; the retrieval dat
 
 def retrieved(text):
     """'2026-11-06 (2006-2015); 2026-11-10 (2016-2023)' -> '2006–15 on 2026-11-06; 2016–23 on 2026-11-10'."""
+    text = re.sub(r";\s*copied to [^;]*", "", text)  # where a copy sits is a working note, not a retrieval date
     return re.sub(r"(\d{4}-\d{2}-\d{2}) \((\d{4})-(\d{4})\)", lambda m: f"{m.group(2)}–{m.group(3)[2:]} on {m.group(1)}", text)
 
 
@@ -140,7 +151,8 @@ def fcodes_table(r):
             oc = "level in 2019–21" if x.model.endswith("1921") else "change"
             what = f"Heaviest quarter with and without a market by 2019, {oc}"
             value = f"medians {x.median_with:.2f} and {x.median_without:.2f}; highest without, {x.max_without:.2f}"
-        out.append({"Outcome": x.outcome[0].upper() + x.outcome[1:], "Comparison": what, "Estimate (95% CI) or medians": value, "p": pval(x.p)})
+        oc_name = x.outcome.replace(" (code/02)", ", as in the main analysis")
+        out.append({"Outcome": oc_name[0].upper() + oc_name[1:], "Comparison": what, "Estimate (95% CI) or medians": value, "p": pval(x.p)})
     return pd.DataFrame(out)
 
 
@@ -301,7 +313,8 @@ def country_tables(r):
     out = []
     for oc, title in (("narc_change", "narcotic poisoning"), ("drug_change", "all drug poisoning")):
         k = r[r.outcome == oc]
-        t = pd.DataFrame({"Sample": k["sample"].map(C_SAMPLE), "Model": k.kind.map(C_MODEL),
+        sample = k["sample"].map(C_SAMPLE).where(k.kind != "P2 pre-arrival exposure", "All but Estonia, which has no window before its market")
+        t = pd.DataFrame({"Sample": sample, "Model": k.kind.map(C_MODEL),
                           "Term": k.term.map(lambda x: joinx([C_TERM[p] for p in x.split(":")])),
                           "Estimate (95% CI)": [est(b, se) for b, se in zip(k.b, k.se)], "p": k.p.map(pval), "n": k.n})
         assert not t.isna().any().any(), t[t.isna().any(axis=1)]
@@ -489,8 +502,17 @@ def europe_part(d):
     return text, seizures, deaths
 
 
+def added_checks(out):
+    """The tables of the checks added after review, by the appendix section each closes (code/42)."""
+    spec = importlib.util.spec_from_file_location("c42", pathlib.Path(__file__).resolve().parent / "42_appendix_checks.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.sections(out)
+
+
 def main(out, paper, catalog):
     out = pathlib.Path(out)
+    F = added_checks(out)
     parts = ["# Appendix", "",
              "This appendix gives the sources of the data (A1), the check on the extraction of INCB's tables (A2), illicit fentanyl supply by "
              "country with the evidence for each code (A3), the seizure check on that coding, with Europe's markets after China's class-wide "
@@ -589,6 +611,7 @@ def main(out, paper, catalog):
               "EUDA has no UK count after 2018, and Belgium's rate for 2019–21 rests on a single year.", "", md(nt), ""]
 
     g = pd.read_csv(out / "gbd_check_results.csv")
+    parts += F["A5"]
     parts += ["## A6. The check on GBD's modelled estimates", "",
               "GBD 2023 models death rates from opioid use disorders for 178 of the countries with prescribing data, 170 of them with GDP. "
               "The models mirror those for WHO's counts: linear regressions with robust standard errors, a Spearman correlation, and the "
@@ -607,7 +630,7 @@ def main(out, paper, catalog):
         parts += [f"Change in {title}, 2010–12 to 2019–21:", "", md(t), ""]
     ac = pd.read_csv(out / "audit_checks.csv")  # read here, used in A7 and A9
     ci = ac[ac.check == "country interaction"]
-    lo = pd.DataFrame({"Countries": ci.model.map(lambda v: v[0].upper() + v[1:]), "Number": ci.n, "Outcome": "Change in narcotic-poisoning mortality",
+    lo = pd.DataFrame({"Countries": ci.model.map(lambda v: v[0].upper() + v[1:]), "n": ci.n, "Outcome": "Change in narcotic-poisoning mortality",
                        "Term": "Log prescribing × illicit supply", "Estimate (95% CI)": [est(b, se) for b, se in zip(ci.b, ci.se)],
                        "p": ci.p.map(pval)})
     parts += ["Three further checks close this section. The first: few countries had illicit supply, so the model of prescribing by illicit supply "
@@ -629,6 +652,7 @@ def main(out, paper, catalog):
 
     s = pd.read_csv(out / "us_states_results.csv")
     stabs = state_tables(s)
+    parts += F["A7"]
     parts += ["## A8. Every model for US states", "",
               "Dispensing and distress are averaged to states over counties with at least 1,000 non-Hispanic white residents in the 2000 census; Adams, Jefferson and Weld counties, Colorado, are absent because the NCHS model-based estimates report them combined with Boulder and Broomfield, and Bedford and Clifton Forge cities, Virginia, because they later merged into their counties. "
               "Each US state model is a linear regression, with robust standard errors, of a state's mortality on its opioid dispensing in "
@@ -733,6 +757,7 @@ def main(out, paper, catalog):
 
     tr = pd.read_csv(out / "alpert_rerun_results.csv")
     ttabs = triplicate_tables(tr)
+    parts += F["A8"]
     parts += ["## A9. Every model for the triplicate comparison", "",
               "The five triplicate states are California, Idaho, Illinois, New York and Texas. The panels compare their log overdose mortality "
               "with the other states', window by window, relative to 1995–98, with state and window fixed effects and errors clustered by "
@@ -798,14 +823,42 @@ def main(out, paper, catalog):
         if t.startswith("lrx_x_since_"):
             return f"Log dispensing × {t[12:]} years since arrival"
         return t
-    model = lambda v: (v[2:] if v[:2] in ("1 ", "2 ", "3 ", "4 ", "6 ") else v)
-    ct = pd.DataFrame({"Model": ca.model.map(lambda v: model(v)[0].upper() + model(v)[1:]), "Hidden counts entered at": ca.bound.astype(str),
+    CY = "by county and year, 2018–25"
+    XS = "across counties within states"
+    A10_MODEL = {"main": "Main", "check: after-share counted in half-years": "Share after arrival counted in half-years",
+                 "1 event time (reference e=-1)": "Windows relative to arrival's, the window before it the reference",
+                 "2 rival: economic distress": "With economic distress added",
+                 "3 pills (ARCOS) in place of dispensing": "Pills shipped, from ARCOS, in place of dispensing",
+                 "4 without NV, ND, SD, UT (arrival SD above a year)": "Without Nevada, North Dakota, South Dakota and Utah, whose arrival dates are least certain",
+                 "6 weighted by population (mean person-years)": "Weighted by population",
+                 "6 substitute: counties with at least 2,500 non-Hispanic white residents": "Counties with at least 2,500 non-Hispanic white residents",
+                 "5a T40.4 county-year: linear in years since arrival": f"Synthetic-opioid deaths {CY}: linear in years since arrival",
+                 "5a T40.4 county-year: bins of years since arrival": f"Synthetic-opioid deaths {CY}: bins of years since arrival",
+                 "5a T40.4 county-year: bins, plus dispensing x year": f"Synthetic-opioid deaths {CY}: bins, with log dispensing by year",
+                 "5c all drug poisoning county-year: bins of years since arrival": f"All drug poisoning {CY}: bins of years since arrival",
+                 "5c all drug poisoning county-year: bins, plus dispensing x year": f"All drug poisoning {CY}: bins, with log dispensing by year",
+                 "5b T40.4 2014-20 cross-section: OLS of log rate, state effects, counties with deaths":
+                     f"Synthetic-opioid deaths 2014–20, {XS}: linear regression of the log rate, counties with deaths",
+                 "5b T40.4 2014-20 cross-section: Poisson PML, state effects, all counties": f"Synthetic-opioid deaths 2014–20, {XS}: Poisson regression, all counties",
+                 "5b T40.4 2014-20 cross-section: censored Poisson, state effects, all counties": f"Synthetic-opioid deaths 2014–20, {XS}: all counties",
+                 "5b context: all drug poisoning 2008-10 cross-section, Poisson PML, state effects": f"All drug poisoning 2008–10, {XS}: Poisson regression",
+                 "5b context: all drug poisoning 2017-19 cross-section, Poisson PML, state effects": f"All drug poisoning 2017–19, {XS}: Poisson regression",
+                 "5b context: all drug poisoning 2008-10 cross-section, censored Poisson, state effects": f"All drug poisoning 2008–10, {XS}",
+                 "5b context: all drug poisoning 2017-19 cross-section, censored Poisson, state effects": f"All drug poisoning 2017–19, {XS}"}
+
+    def model(v):
+        if v in A10_MODEL:
+            return A10_MODEL[v]
+        assert v.endswith(", censored Poisson") and v[:-18] in A10_MODEL, v
+        return A10_MODEL[v[:-18]] + ", censored Poisson"
+    ct = pd.DataFrame({"Model": ca.model.map(model), "Hidden counts entered at": ca.bound.astype(str),
                        "Term": ca.term.map(cterm),
                        "Estimate (95% CI)": ["" if pd.isna(lo) else eci(b, lo, hi) for b, lo, hi in zip(ca.b, ca.lo, ca.hi)],
                        "Ratio, 75th to 25th percentile (95% CI)": ["" if pd.isna(r) else f"{r:.2f} ({a:.2f} to {z:.2f})" for r, a, z in zip(ca.ratio, ca.ratio_lo, ca.ratio_hi)],
                        "p": ca.p.map(pval)})
     ct.loc[ca.term.str.startswith("Wald").values, "Estimate (95% CI)"] = [f"χ² {b:.2f}, 2 df" for b in ca.b[ca.term.str.startswith("Wald")]]
     m0 = pd.read_csv(out / "county_arrival_results.csv").query("model == 'main' and term == 'lrx_x_after'").iloc[0]
+    parts += F["A9"]
     parts += ["## A10. The county test", "",
               "Within each state, did counties that prescribed more before fentanyl rise more once the state's fentanyl arrived? The panel "
               f"holds {int(m0.counties)} counties of the 48 contiguous states and DC, those with at least 1,000 non-Hispanic white residents in "
@@ -861,6 +914,7 @@ def main(out, paper, catalog):
     us = us[us.outcome.isin(["alcohol-induced", "suicide"]) & (us.term == "lrx") & (us.bound == 5)] if "alcohol-induced" in set(us.outcome) else us[(us.term == "lrx") & (us.bound == 5) & ~us.outcome.isin(["overdose"])]
     ut = pd.DataFrame({"Outcome": us.outcome.map(lambda v: v[0].upper() + v[1:]), "Measure": us.measure, "Model": us.model.map(lambda v: v[0].upper() + v[1:]),
                        "Log dispensing (95% CI)": [eci(b, lo, hi) for b, lo, hi in zip(us.b, us.lo, us.hi)], "p": us.p.map(pval)})
+    parts += F["A10"]
     parts += ["## A11. Negative-control outcomes", "",
               "Fentanyl cannot cause alcohol poisoning (X45, X65 and Y15), road traffic deaths (V01–V89) or other external causes (V01–Y89 "
               "less drug poisoning). If the main country results reflected how countries record deaths, their wealth or what sets North "
@@ -881,8 +935,31 @@ def main(out, paper, catalog):
     pr = pr[pr.term.isin(["lrx", "ladm", "ladm:post", "lrx:post", "rho", "lrx_pre"]) & ~pr.formula.str.contains("lrx_2011", na=False)]
     tlab = {"lrx": "Log dispensing", "ladm": "Log treatment admissions", "ladm:post": "Log admissions × after arrival",
             "lrx:post": "Log dispensing × after arrival", "rho": "Spearman's rho", "lrx_pre": "Log prescribing"}
-    pt = pd.DataFrame({"Test": pr.test, "Outcome": pr.outcome.map(lambda v: v[0].upper() + v[1:]), "Units": pr["sample"].map(lambda v: v[0].upper() + v[1:]),
-                       "Hidden counts at": pr.bound.map(lambda v: "" if pd.isna(v) else str(int(v))), "Model": pr.formula, "Number": pr.n,
+    A12_VAR = {"lrx": "log dispensing", "ladm": "log admissions", "lbup": "log buprenorphine grams", "zx": "distress", "white": "market type",
+               "za": "arrival date", "lanyop_2006": "log admissions in 2006–08", "lanyop_2009": "log admissions in 2009–11",
+               "lheroin1_2009": "log primary-heroin admissions", "lheroin1_2006": "log primary-heroin admissions in 2006–08",
+               "lothop1_2009": "log admissions for other opiates", "lothop1_2006": "log admissions for other opiates in 2006–08",
+               "lgdp": "log GDP", "lrx_pre": "log prescribing", "rx": "dispensing", "rx_pre": "prescribing", "anyop_2009": "admissions in 2009–11",
+               "anyop_2006": "admissions in 2006–08", "heroin1_2009": "primary-heroin admissions in 2009–11", "heroin1_2006": "primary-heroin admissions in 2006–08",
+               "othop1_2009": "admissions for other opiates in 2009–11", "othop1_2006": "admissions for other opiates in 2006–08",
+               "bup_g": "buprenorphine grams", "methadone_g": "methadone grams", "mat_share_2009": "the share planned on medication",
+               "adm_per_1000_rx": "admissions per 1,000 prescriptions", "othop_per_1000_rx": "other-opiate admissions per 1,000 prescriptions",
+               "hr_any": "high-risk opioid use, any year", "hr_pre": "high-risk opioid use before arrival", "oat_any": "agonist treatment clients, any year",
+               "oat_pre": "agonist treatment clients before arrival", "tdi_any": "treatment entrants, any year", "tdi_pre": "treatment entrants before arrival"}
+
+    def a12_model(f):
+        """A formula from code/31 in words: the outcome has its own column, so the model names the method and what is on the right."""
+        if f.startswith("spearman("):
+            a, b = [x.strip() for x in f[9:-1].split(",")]
+            return f"Spearman correlation of {A12_VAR[a]} with {A12_VAR[b]}"
+        rhs = [x.strip() for x in f.split("~")[1].split("+")]
+        if f.startswith("lod ~"):
+            terms = [{"lrx:post": "log dispensing after arrival", "ladm:post": "log admissions after arrival"}[x] for x in rhs if ":" in x]
+            return "Panel of states by window, state and window effects, windows after arrival: " + " and ".join(terms)
+        return "Linear regression on " + andlist([A12_VAR[x] for x in rhs])
+    a12_outcome = lambda v: (v[0].upper() + v[1:]).replace(" in SUB1-SUB3", " among the three substances recorded")
+    pt = pd.DataFrame({"Test": pr.test, "Outcome": pr.outcome.map(a12_outcome), "Units": pr["sample"].map(lambda v: v[0].upper() + v[1:]),
+                       "Hidden counts at": pr.bound.map(lambda v: "" if pd.isna(v) else str(int(v))), "Model": pr.formula.map(a12_model), "n": pr.n,
                        "Term": pr.term.map(tlab), "Estimate (95% CI)": [f"{b:.2f}" if pd.isna(lo) else eci(b, lo, hi) for b, lo, hi in zip(pr.b, pr.lo, pr.hi)],
                        "p": pr.p.map(pval)})
     pt = merge_bounds(pt, "Hidden counts at")
@@ -911,9 +988,23 @@ def main(out, paper, catalog):
                         "Change, log ratio": cp.chg_all.map(lambda v: f"{v:.2f}"),
                         "PHAC opioid deaths per 100 000, 2016–21": cp.phac_opioid_2016_2021.map(lambda v: "" if pd.isna(v) else f"{v:.2f}")})
     cr = pd.read_csv(out / "canada_provinces_results.csv")
-    crt = pd.DataFrame({"Test": cr.test.str[2:].map(lambda v: v[0].upper() + v[1:]), "Variant": cr.variant.map(lambda v: v[0].upper() + v[1:]),
-                        "Method": cr.method, "Term": cr.x, "Outcome": cr.y,
+    A13_VAR = {"chg_all": "change in poisoning mortality", "chg_acc": "change in accidental poisoning mortality",
+               "chg_asr": "change in age-standardised poisoning mortality", "chg_pre_all": "change from the three years before arrival",
+               "np.log(all_2007_2011)": "log poisoning mortality in 2007–11", "np.log(all_2019_2021)": "log poisoning mortality in 2019–21",
+               "np.log(phac_opioid_2016_2021)": "log opioid toxicity deaths in 2016–21", "log_presc": "log prescribing", "arrival_c": "arrival year",
+               "arrival_an_c": "arrival year, fentanyl with analogues", "arrival_nc_c": "arrival year, non-cannabis denominator"}
+
+    def a13_method(m):
+        if not m.startswith("OLS HC3: "):
+            return m
+        y, rhs = [x.strip() for x in m[9:].split("~")]
+        return f"Linear regression of {A13_VAR[y]} on " + andlist([A13_VAR[x.strip()] for x in rhs.split("+")])
+    a13_test = lambda v: (v[2:] if v[:2] in ("1 ", "2 ") else v)
+    a13_term = lambda v: (lambda w: w[0].upper() + w[1:])(A13_VAR.get(v, v))
+    crt = pd.DataFrame({"Test": cr.test.map(lambda v: a13_test(v)[0].upper() + a13_test(v)[1:]), "Variant": cr.variant.map(lambda v: v[0].upper() + v[1:]),
+                        "Method": cr.method.map(a13_method), "Term": cr.x.map(a13_term), "Outcome": cr.y,
                         "Estimate (95% CI)": [eci(b, lo, hi) for b, lo, hi in zip(cr.estimate, cr.lo, cr.hi)], "p": cr.p.map(pval), "Provinces": cr.n})
+    parts += F["A12"]
     parts += ["## A13. Canada's provinces", "",
               "Prescribing is strong-opioid dispensing in defined daily doses per 1000 people a day, retail pharmacies, codeine and "
               "methadone excluded, the mean of fiscal 2007–08 to 2011–12 from table 1 of Jones and colleagues, transcribed twice and checked "
