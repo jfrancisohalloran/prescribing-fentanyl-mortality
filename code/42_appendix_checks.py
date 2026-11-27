@@ -1,7 +1,8 @@
 """Tables for the appendix from the checks added after review (code/39, 40 and 41), in plain words. code/16 calls `sections(out)` and
 places each block at the end of the appendix section it belongs to. No number is retyped: every cell comes from an output file.
 
-Outputs read: further_checks.csv, scotland_who.csv, composition_mme.csv, composition_contrasts.csv, heroin_rx_deaths.csv.
+Outputs read: further_checks.csv, scotland_who.csv, composition_mme.csv, composition_contrasts.csv, heroin_rx_deaths.csv and the
+three dose_range files of code/43.
 """
 import math
 import pathlib
@@ -215,7 +216,56 @@ def heroin(out):
             "three years after arrival by 2020.", "", md(pd.DataFrame(rows)), ""]
 
 
+def dose_range(out):
+    b = pd.read_csv(out / "dose_range_bands.csv")
+    t = pd.read_csv(out / "dose_range_tests.csv")
+    bands = pd.DataFrame({"Prescribing 2000–11, S-DDD per million a day": b.band.str.replace(" to ", "–"), "Countries": b.countries,
+                          "With a fentanyl market by 2019": b.with_market, "Median GDP per person, dollars": b.median_gdp.map(lambda v: f"{v:,.0f}".replace(",", " ")),
+                          "Without a market": b.no_market_n, "Their median narcotic-poisoning mortality 2019–21, per 100 000": b.narc_1921_median.map("{:.2f}".format),
+                          "Their highest": b.narc_1921_max.map("{:.2f}".format)})
+    PLAIN = {"prescribing with change in mortality": "Prescribing with change in mortality, 2010–12 to 2019–21",
+             "growth of prescribing with change in mortality": "Growth of prescribing, 2000–02 to 2009–11, with change in mortality",
+             "prescribing with mortality in 2019-21": "Prescribing with mortality in 2019–21",
+             "change in mortality on growth of prescribing, GDP held": "Change in mortality on growth of prescribing, GDP held"}
+    rows = []
+    for x in t[t.test.isin(PLAIN)].itertuples():
+        est = f"{x.estimate:.2f}".replace("-", "–") if pd.isna(x.lo) else ci(x.estimate, x.lo, x.hi)
+        rows.append({"Countries": x.sample[0].upper() + x.sample[1:], "Test": PLAIN[x.test], "Method": "Spearman correlation" if x.kind == "Spearman" else "Linear regression",
+                     "Estimate (95% CI)": est, "p": pv(x.p), "n": int(x.n)})
+    low = t[t["sample"] == "without a market, below the median income"].set_index("test")
+    g, r = low.loc["growth of prescribing, 2000-02 to 2009-11, ratio"], low.loc["prescribing 2000-11, S-DDD"]
+    return ["Across the 60 countries prescribing and income rise together, and none of the lower-income countries prescribed heavily, so "
+            "the comparison cannot say what heavy prescribing does in a poorer country. It can say what happened across the range a "
+            "country would move through in raising low use. The first table gives the countries in bands of prescribing; Berterame and "
+            "colleagues call 101 to 200 S-DDD low use. The second asks, among countries without an illicit fentanyl market, whether "
+            "the change in narcotic-poisoning mortality followed prescribing or its growth. In the "
+            f"{int(r.n)} such countries below the 60 countries' median income, prescribing ranged from {r.lo:.0f} to {r.hi:.0f} S-DDD and "
+            f"grew by a median of {g.estimate:.1f} times, at most {g.hi:.1f} times, between 2000–02 and 2009–11. Mortality in 2019–21 was "
+            "higher where prescribing was higher, at rates under 2 per 100 000; its change was unrelated to prescribing or to its growth. "
+            "Death registration is weaker in poorer countries, and GBD's estimates for them are largely modelled.", "", md(bands), "",
+            md(pd.DataFrame(rows)), ""]
+
+
+def distress_counties(out):
+    c = pd.read_csv(out / "dose_range_counties.csv")
+    HOW = {1: "one", 5: "five", 9: "nine"}
+    rows = []
+    for x in c[c.term == "lrx_x_after"].itertuples():
+        if x.model == "prescribing times distress":
+            continue
+        rows.append({"Counties": x.model[0].upper() + x.model[1:], "Hidden counts at": HOW[int(x.bound)],
+                     "Mortality after arrival, 75th against 25th percentile of dispensing (95% CI)": ci(x.ratio, x.ratio_lo, x.ratio_hi),
+                     "Counties in the model": int(x.counties), "States": int(x.states)})
+    i = c[(c.term == "lrx_zx_x_after") & (c.bound == 5)].iloc[0]
+    return ["Poverty under one country's regulation. If heavy prescribing did more harm in poorer places, the county test should show a "
+            "higher ratio in the most economically distressed counties. The table fits the main county model within thirds of counties by "
+            "the economic distress index. A model of all counties with prescribing times distress times the share of the window after "
+            f"arrival gives {ci(i.b, i.lo, i.hi)} for that term with hidden counts at five: the ratio was lower, not higher, where "
+            "distress was greater.", "", md(pd.DataFrame(rows)), ""]
+
+
 def sections(out):
     out = pathlib.Path(out)
     r = pd.read_csv(out / "further_checks.csv", dtype={"item": str})
-    return {"A5": scotland(out), "A7": countries(out, r), "A8": states_absolute(r), "A9": arrival_dates(r), "A10": counties(r), "A12": heroin(out)}
+    return {"A5": scotland(out), "A7": countries(out, r) + dose_range(out), "A8": states_absolute(r), "A9": arrival_dates(r),
+            "A10": counties(r) + distress_counties(out), "A12": heroin(out)}

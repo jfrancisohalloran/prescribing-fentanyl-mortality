@@ -30,6 +30,7 @@ python3 code/38_indiana_lab.py $R/indiana_isp_lab_submissions/<date>/drug_submis
 python3 code/39_further_checks.py out $R/wonder_state_year_t404/<date> $R/wonder_pooled/<date> $R/wonder_county_year/<date> inputs/1a_out <arcos county file> inputs/1a_out/nflis_dqs_state_year.csv $R/nflis_dqs_heroin/<date>/<the query system's csv>
 python3 code/40_scotland_composition.py out $R/who_mortality_db/<date>
 python3 code/41_heroin_rx_deaths.py . $R/wonder_state_year_t404/<date> $R/wonder_state_year_t401_t402/<date>
+python3 code/43_dose_range.py out inputs/1a_out <arcos county file> $R/wonder_pooled/<date>
 python3 code/12_figures.py out figures
 python3 code/13_numbers.py out paper
 python3 code/14_tables.py out paper
