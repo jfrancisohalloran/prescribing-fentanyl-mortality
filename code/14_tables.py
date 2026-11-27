@@ -36,8 +36,8 @@ def main(out, paper):
                     f"{'' if tt.empty else int(tt['rank'].iloc[0])} | {'' if tt.empty else f'{tt.narc_1921.iloc[0]:.2f}'} |")
     t1 = ("**Table 1: Illicit fentanyl markets by country, 2019.** Countries other than these are coded as having no illicit fentanyl market known. "
           "Sources for each code are in the appendix. The first year dates a lasting market; earlier episodes, such as the USA's in 2005–07 "
-          "and Sweden's in the 1990s and early 2000s, are noted there. Sweden's market ended in 2018. Seizure rates are calculated from UNODC's World Drug Report statistical annex^18^ and "
-          "death rates from the WHO Mortality Database;^12^ prescribing ranks are from INCB's technical reports.^11^ "
+          "and Sweden's in the 1990s and early 2000s, are noted there. Sweden's market ended in 2018. The alternative coding counts Lithuania as an established market. Seizure rates are calculated from UNODC's World Drug Report statistical annex^17^ and "
+          "death rates from the WHO Mortality Database;^11^ prescribing ranks are from INCB's technical reports.^10^ "
           "Transit-only countries count as supply only in a sensitivity analysis. A blank cell "
           "means that no seizure was reported or that the country lacks WHO mortality data.\n\n" + "\n".join(rows))
 
